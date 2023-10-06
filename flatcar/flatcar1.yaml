@@ -1,0 +1,406 @@
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: flatcar1
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks:
+        - 192.168.0.0/16
+    services:
+      cidrBlocks:
+        - 172.26.0.0/16
+  controlPlaneRef:
+    apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+    kind: KubeadmControlPlane
+    name: flatcar1-control-plane
+  infrastructureRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+    kind: PacketCluster
+    name: flatcar1
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: PacketCluster
+metadata:
+  name: flatcar1
+spec:
+  metro: da
+  projectID: dc001ab1-9386-4159-b45c-9a1ba0a81611
+  vipManager: CPEM
+---
+apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+kind: KubeadmControlPlane
+metadata:
+  name: flatcar1-control-plane
+spec:
+  kubeadmConfigSpec:
+    clusterConfiguration:
+      apiServer:
+        extraArgs:
+          cloud-provider: external
+      controllerManager:
+        extraArgs:
+          cloud-provider: external
+    initConfiguration:
+      nodeRegistration:
+        kubeletExtraArgs:
+          cloud-provider: external
+          provider-id: equinixmetal://{{ `{{ v1.instance_id }}` }}
+    joinConfiguration:
+      nodeRegistration:
+        ignorePreflightErrors:
+          - DirAvailable--etc-kubernetes-manifests
+        kubeletExtraArgs:
+          cloud-provider: external
+          provider-id: equinixmetal://{{ `{{ v1.instance_id }}` }}
+    format: ignition
+    ignition:
+      containerLinuxConfig:
+        additionalConfig: |
+          locksmith:
+            reboot_strategy: "off"
+          storage:
+            files:
+              - path: /etc/crictl.yaml
+                filesystem: root
+                mode: 0600
+                contents:
+                  inline: |
+                    runtime-endpoint: unix:///run/containerd/containerd.sock
+                    image-endpoint: unix:///run/containerd/containerd.sock
+              - path: /etc/ssh/sshd_config
+                filesystem: root
+                mode: 0600
+                contents:
+                  inline: |
+                    # Use most defaults for sshd configuration.
+                    Subsystem sftp internal-sftp
+                    ClientAliveInterval 180
+                    UseDNS no
+                    UsePAM yes
+                    PrintLastLog no # handled by PAM
+                    PrintMotd no # handled by PAM
+                    # metalkube.net customizations
+                    PermitRootLogin no
+                    AllowUsers core
+                    AuthenticationMethods publickey
+                    TrustedUserCAKeys /etc/ssh/ca.pub
+                    AuthorizedPrincipalsFile /etc/ssh/auth_principals/%u
+              - path: /etc/ssh/ca.pub
+                filesystem: root
+                mode: 0444
+                contents:
+                  inline: |
+                    ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGzxTkbVXQR+RRdadSkQ5eKxG53WZTervwMi3GLzlYoO
+              - path: /etc/ssh/auth_principals/core
+                filesystem: root
+                mode: 0444
+                contents:
+                  inline: |
+                    delivery-infra
+              - path: /etc/sysctl.d/90-override.conf
+                filesystem: root
+                mode: 420
+                contents:
+                  inline: net.ipv4.conf.lxc*.rp_filter = 0
+          passwd:
+            users:
+              - name: core
+                ssh_authorized_keys:
+                  - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGzxTkbVXQR+RRdadSkQ5eKxG53WZTervwMi3GLzlYoO
+          systemd:
+            units:
+            - name: kubeadm.service
+              enabled: true
+              dropins:
+              - name: 10-flatcar.conf
+                contents: |
+                  [Unit]
+                  # kubeadm must run after coreos-metadata populated /run/metadata directory.
+                  Requires=coreos-metadata.service
+                  After=coreos-metadata.service
+                  # kubeadm must run after containerd - see https://github.com/kubernetes-sigs/image-builder/issues/939.
+                  After=containerd.service
+                  [Service]
+                  # To make metadata environment variables available for pre-kubeadm commands.
+                  EnvironmentFile=/run/metadata/*
+            - name: systemd-networkd.service
+              enabled: true
+            - name: systemd-networkd-wait-online.service
+              enabled: true
+            # The below requires setting up disks first
+            # - name: var-lib-containerd.mount
+            #   enable: true
+            #   contents: |
+            #     [Unit]
+            #     Before=local-fs.target
+            #     [Mount]
+            #     What=LABEL=CONTAINER_STORE
+            #     Where=/var/lib/containerd
+            #     Type=ext4
+            #     [Install]
+            #     WantedBy=local-fs.target
+            # Don't start docker and instead start containerd
+            - name: docker.socket
+              enabled: false
+              mask: true
+            - name: docker.service
+              enabled: false
+              mask: true
+            - name: containerd.service
+              enabled: true
+              dropins:
+                - name: 10-use-custom-config.conf
+                  contents: |
+                    [Service]
+                    ExecStart=
+                    ExecStart=/usr/bin/containerd
+                # - name: 10-wait-var-lib-containerd.conf
+                #   contents: |
+                #     [Unit]
+                #     After=var-lib-containerd.mount
+                #     Requires=var-lib-containerd.mount
+            # TPM is disabled in the BIOS
+            - name: tcsd.service
+              enabled: false
+              mask: true
+            # Use NTP not systemd-timesyncd
+            - name: systemd-timesyncd.service
+              mask: true
+            - name: ntpd.service
+              enable: true
+            - name: enable-selinux.service
+              enabled: false
+              contents: |
+                [Unit]
+                Description=Set SELinux to enforcing
+                DefaultDependencies=no
+                After=local-fs.target systemd-tmpfiles-setup.service
+                Conflicts=shutdown.target
+                Before=sysinit.target shutdown.target
+                ConditionSecurity=selinux
+
+                [Service]
+                Type=oneshot
+                RemainAfterExit=yes
+                ExecStart=/sbin/setenforce 1
+
+                [Install]
+                WantedBy=multi-user.target
+    preKubeadmCommands:
+      - envsubst < /etc/kubeadm.yml > /etc/kubeadm.yml.tmp
+      - mv /etc/kubeadm.yml.tmp /etc/kubeadm.yml
+  machineTemplate:
+    infrastructureRef:
+      apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+      kind: PacketMachineTemplate
+      name: flatcar1-control-plane
+  replicas: 1
+  version: v1.28.2
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: PacketMachineTemplate
+metadata:
+  name: flatcar1-control-plane
+spec:
+  template:
+    spec:
+      billingCycle: hourly
+      machineType: c3.small.x86
+      os: flatcar_stable
+      sshKeys:
+        - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGzxTkbVXQR+RRdadSkQ5eKxG53WZTervwMi3GLzlYoO
+      tags: []
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineDeployment
+metadata:
+  labels:
+    cluster.x-k8s.io/cluster-name: flatcar1
+    pool: worker-a
+  name: flatcar1-worker-a
+spec:
+  clusterName: flatcar1
+  replicas: 0
+  selector:
+    matchLabels:
+      cluster.x-k8s.io/cluster-name: flatcar1
+      pool: worker-a
+  template:
+    metadata:
+      labels:
+        cluster.x-k8s.io/cluster-name: flatcar1
+        pool: worker-a
+    spec:
+      bootstrap:
+        configRef:
+          apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+          kind: KubeadmConfigTemplate
+          name: flatcar1-worker-a
+      clusterName: flatcar1
+      infrastructureRef:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: PacketMachineTemplate
+        name: flatcar1-worker-a
+      version: v1.28.2
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: PacketMachineTemplate
+metadata:
+  name: flatcar1-worker-a
+spec:
+  template:
+    spec:
+      billingCycle: hourly
+      machineType: t3.small.x86
+      os: flatcar_stable
+      sshKeys:
+        - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGzxTkbVXQR+RRdadSkQ5eKxG53WZTervwMi3GLzlYoO
+      tags: []
+---
+apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+kind: KubeadmConfigTemplate
+metadata:
+  name: flatcar1-worker-a
+spec:
+  template:
+    spec:
+      joinConfiguration:
+        nodeRegistration:
+          kubeletExtraArgs:
+            cloud-provider: external
+            provider-id: equinixmetal://{{ `{{ v1.instance_id }}` }}
+    format: ignition
+    ignition:
+      containerLinuxConfig:
+        additionalConfig: |
+          locksmith:
+            reboot_strategy: "off"
+          storage:
+            files:
+              - path: /etc/crictl.yaml
+                filesystem: root
+                mode: 0600
+                contents:
+                  inline: |
+                    runtime-endpoint: unix:///run/containerd/containerd.sock
+                    image-endpoint: unix:///run/containerd/containerd.sock
+              - path: /etc/ssh/sshd_config
+                filesystem: root
+                mode: 0600
+                contents:
+                  inline: |
+                    # Use most defaults for sshd configuration.
+                    Subsystem sftp internal-sftp
+                    ClientAliveInterval 180
+                    UseDNS no
+                    UsePAM yes
+                    PrintLastLog no # handled by PAM
+                    PrintMotd no # handled by PAM
+                    PermitRootLogin no
+                    AllowUsers core
+                    AuthenticationMethods publickey
+                    TrustedUserCAKeys /etc/ssh/ca.pub
+                    AuthorizedPrincipalsFile /etc/ssh/auth_principals/%u
+              - path: /etc/ssh/ca.pub
+                filesystem: root
+                mode: 0444
+                contents:
+                  inline: |
+                    ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGzxTkbVXQR+RRdadSkQ5eKxG53WZTervwMi3GLzlYoO
+              - path: /etc/ssh/auth_principals/core
+                filesystem: root
+                mode: 0444
+                contents:
+                  inline: |
+                    delivery-infra
+              - path: /etc/sysctl.d/90-override.conf
+                filesystem: root
+                mode: 420
+                contents:
+                  inline: net.ipv4.conf.lxc*.rp_filter = 0
+          passwd:
+            users:
+              - name: core
+                ssh_authorized_keys:
+                  - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGzxTkbVXQR+RRdadSkQ5eKxG53WZTervwMi3GLzlYoO
+          systemd:
+            units:
+            - name: kubeadm.service
+              enabled: true
+              dropins:
+              - name: 10-flatcar.conf
+                contents: |
+                  [Unit]
+                  # kubeadm must run after coreos-metadata populated /run/metadata directory.
+                  Requires=coreos-metadata.service
+                  After=coreos-metadata.service
+                  # kubeadm must run after containerd - see https://github.com/kubernetes-sigs/image-builder/issues/939.
+                  After=containerd.service
+                  [Service]
+                  # To make metadata environment variables available for pre-kubeadm commands.
+                  EnvironmentFile=/run/metadata/*
+            - name: systemd-networkd.service
+              enabled: true
+            - name: systemd-networkd-wait-online.service
+              enabled: true
+            # The below requires setting up disks first
+            # - name: var-lib-containerd.mount
+            #   enable: true
+            #   contents: |
+            #     [Unit]
+            #     Before=local-fs.target
+            #     [Mount]
+            #     What=LABEL=CONTAINER_STORE
+            #     Where=/var/lib/containerd
+            #     Type=ext4
+            #     [Install]
+            #     WantedBy=local-fs.target
+            # Don't start docker and instead start containerd
+            - name: docker.socket
+              enabled: false
+              mask: true
+            - name: docker.service
+              enabled: false
+              mask: true
+            - name: containerd.service
+              enabled: true
+              dropins:
+                - name: 10-use-custom-config.conf
+                  contents: |
+                    [Service]
+                    ExecStart=
+                    ExecStart=/usr/bin/containerd
+                # - name: 10-wait-var-lib-containerd.conf
+                #   contents: |
+                #     [Unit]
+                #     After=var-lib-containerd.mount
+                #     Requires=var-lib-containerd.mount
+            # TPM is disabled in the BIOS
+            - name: tcsd.service
+              enabled: false
+              mask: true
+            # Use NTP not systemd-timesyncd
+            - name: systemd-timesyncd.service
+              mask: true
+            - name: ntpd.service
+              enable: true
+            - name: enable-selinux.service
+              enabled: false
+              contents: |
+                [Unit]
+                Description=Set SELinux to enforcing
+                DefaultDependencies=no
+                After=local-fs.target systemd-tmpfiles-setup.service
+                Conflicts=shutdown.target
+                Before=sysinit.target shutdown.target
+                ConditionSecurity=selinux
+
+                [Service]
+                Type=oneshot
+                RemainAfterExit=yes
+                ExecStart=/sbin/setenforce 1
+
+                [Install]
+                WantedBy=multi-user.target

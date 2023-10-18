@@ -1,0 +1,49 @@
+apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+kind: KubeadmControlPlane
+metadata:
+  name: {{ include "capi-flatcar.name" . }}-control-plane
+spec:
+  kubeadmConfigSpec:
+    clusterConfiguration:
+      apiServer:
+        extraArgs:
+          cloud-provider: external
+      controllerManager:
+        extraArgs:
+          cloud-provider: external
+          allocate-node-cidrs: 'true'
+          flex-volume-plugin-dir: "/opt/libexec/kubernetes/kubelet-plugins/volume/exec/"
+          profiling: 'false'
+    initConfiguration:
+      nodeRegistration:
+        name: ${COREOS_PACKET_HOSTNAME}
+        kubeletExtraArgs:
+          cloud-provider: external
+          volume-plugin-dir: "/opt/libexec/kubernetes/kubelet-plugins/volume/exec/"
+    joinConfiguration:
+      nodeRegistration:
+        name: ${COREOS_PACKET_HOSTNAME}
+        ignorePreflightErrors:
+          - DirAvailable--etc-kubernetes-manifests
+        kubeletExtraArgs:
+          cloud-provider: external
+    format: ignition
+    ignition:
+      containerLinuxConfig:
+        additionalConfig: |
+{{ tpl (.Files.Get "files/ignition.yaml") . | indent 10 }}
+    preKubeadmCommands:
+      - |
+        envsubst < /etc/kubeadm.yml > /etc/kubeadm.yml.tmp && mv /etc/kubeadm.yml.tmp /etc/kubeadm.yml
+        /opt/bootstrap.sh > /opt/bootstrap.log
+        export PATH=$PATH:/opt/bin
+        export CP_ENDPOINT=$(grep controlPlaneEndpoint /etc/kubeadm.yml | cut -d ' ' -f2 | cut -d ':' -f1)
+        ping -c 3 -q ${CP_ENDPOINT} && echo OK || ip addr add ${CP_ENDPOINT} dev lo
+
+  machineTemplate:
+    infrastructureRef:
+      apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+      kind: PacketMachineTemplate
+      name: {{ include "capi-flatcar.name" . }}-control-plane
+  replicas: {{ .Values.controlplane.count }}
+  version: {{ .Values.kubeVersion }}

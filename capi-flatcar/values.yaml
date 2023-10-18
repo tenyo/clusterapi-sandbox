@@ -1,0 +1,26 @@
+nameOverride: "cluster1"
+
+kubeVersion: "v1.28.2"
+
+controlplane:
+  count: 1
+  machineType: c3.small.x86
+
+worker:
+  count: 1
+  machineType: c3.small.x86
+
+equinixmetal:
+  metro: da
+  projectID: dc001ab1-9386-4159-b45c-9a1ba0a81611
+  os: flatcar_stable
+
+cidrBlocks:
+  pods:
+    - 192.168.0.0/16
+  services:
+    - 172.26.0.0/16
+
+sshKeys:
+  caPub: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGMk7ehnqxvlTWoyhdPJxS+1xYvX/Srq5QMcPQPmjs9M"
+  core: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGzxTkbVXQR+RRdadSkQ5eKxG53WZTervwMi3GLzlYoO"

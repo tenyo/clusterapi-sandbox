@@ -70,12 +70,27 @@ KUBECONFIG=./test1.kubeconfig cilium install
 
 ## Workload cluster deploy using Flatcar/Ignition on Equinix Metal
 
-This is not officially supported currently by the packet provider (see https://github.com/kubernetes-sigs/cluster-api-provider-packet/issues/495) so we need to manually craft the manifests.
+This is not supported currently by the packet provider (see https://github.com/kubernetes-sigs/cluster-api-provider-packet/issues/495) so we need to manually craft the manifests.
 
-Disclaimer: This is still WIP so it won't create a fully functioning kube cluster!
+Disclaimer: This is still WIP so it may not create a fully functioning kube cluster!
 
 This attempts to launch a Flatcar c3 server in Equinix Metal and configure it using ignition:
 ```
-kubectl apply -f flatcar/flatcar1.yaml
+helm template capi-flatcar/ | kubectl apply -f -
+```
+
+After it initializes, get the kubeconfig for the new cluster, e.g.:
+```
+clusterctl get kubeconfig cluster1 > .kubeconfig
+```
+
+Install Cilium:
+```
+KUBECONFIG=.kubeconfig cilium install
+```
+
+Confirm cluster is now Ready:
+```
+kubectl --kubeconfig=.kubeconfig get node
 ```
 

@@ -1,0 +1,8 @@
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: PacketCluster
+metadata:
+  name: {{ include "capi-flatcar.name" . }}
+spec:
+  metro: {{ .Values.equinixmetal.metro }}
+  projectID: {{ .Values.equinixmetal.projectID }}
+  vipManager: CPEM # KUBE_VIP

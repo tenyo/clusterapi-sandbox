@@ -19,6 +19,7 @@ spec:
         name: ${COREOS_PACKET_HOSTNAME}
         kubeletExtraArgs:
           cloud-provider: external
+          container-log-max-size: 1M
           volume-plugin-dir: "/opt/libexec/kubernetes/kubelet-plugins/volume/exec/"
     joinConfiguration:
       nodeRegistration:
@@ -39,7 +40,13 @@ spec:
         export PATH=$PATH:/opt/bin
         export CP_ENDPOINT=$(grep controlPlaneEndpoint /etc/kubeadm.yml | cut -d ' ' -f2 | cut -d ':' -f1)
         ping -c 3 -q ${CP_ENDPOINT} && echo OK || ip addr add ${CP_ENDPOINT} dev lo
-
+    postKubeadmCommands:
+      - |
+        mkdir -p $HOME/.kube
+        cp /etc/kubernetes/admin.conf $HOME/.kube/config
+        echo "source <(kubectl completion bash)" >> $HOME/.bashrc
+        echo "alias k=kubectl" >> $HOME/.bashrc
+        echo "complete -o default -F __start_kubectl k" >> $HOME/.bashrc
   machineTemplate:
     infrastructureRef:
       apiVersion: infrastructure.cluster.x-k8s.io/v1beta1

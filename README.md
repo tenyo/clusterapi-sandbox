@@ -86,7 +86,7 @@ clusterctl get kubeconfig cluster1 > .kubeconfig
 
 Install Cilium:
 ```
-KUBECONFIG=.kubeconfig cilium install
+KUBECONFIG=.kubeconfig cilium install --set MTU=1500
 ```
 
 Confirm cluster is now Ready:

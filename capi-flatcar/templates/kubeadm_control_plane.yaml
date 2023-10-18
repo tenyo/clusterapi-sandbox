@@ -42,11 +42,25 @@ spec:
         ping -c 3 -q ${CP_ENDPOINT} && echo OK || ip addr add ${CP_ENDPOINT} dev lo
     postKubeadmCommands:
       - |
-        mkdir -p $HOME/.kube
-        cp /etc/kubernetes/admin.conf $HOME/.kube/config
-        echo "source <(kubectl completion bash)" >> $HOME/.bashrc
-        echo "alias k=kubectl" >> $HOME/.bashrc
-        echo "complete -o default -F __start_kubectl k" >> $HOME/.bashrc
+        mkdir -p $HOME/.kube && cp /etc/kubernetes/admin.conf $HOME/.kube/config
+        cat <<EOF >> /etc/systemd/network/00-lo-kubeanycast.network
+        [Match]
+        Name=lo
+
+        [Network]
+
+        [Address]
+        Label=lo:kubeapi
+        Address=${CP_ENDPOINT}/32
+        EOF
+        systemctl restart systemd-networkd.service
+
+        # TODO: Need to somehow pass the EM apiKey below
+        export KUBECONFIG=/etc/kubernetes/admin.conf
+        export CPEM_YAML=https://github.com/equinix/cloud-provider-equinix-metal/releases/download/${CPEM_VERSION:=v3.6.2}/deployment.yaml
+        export SECRET_DATA='cloud-sa.json=''{"apiKey": "{{ .apiKey }}","projectID": "{{ .Values.equinixmetal.projectID }}", "eipTag": "cluster-api-provider-packet:cluster-id:{{ include "capi-flatcar.name" . }}", "eipHealthCheckUseHostIP": true}'''
+        kubectl create secret generic -n kube-system metal-cloud-config --from-literal="${SECRET_DATA}" || (sleep 1 && kubectl create secret generic -n kube-system metal-cloud-config --from-literal="${SECRET_DATA}") || (sleep 1 && kubectl create secret generic -n kube-system metal-cloud-config --from-literal="${SECRET_DATA}")
+        kubectl apply -f ${CPEM_YAML} || (sleep 1 && kubectl apply -f ${CPEM_YAML}) || (sleep 1 && kubectl apply -f ${CPEM_YAML})
   machineTemplate:
     infrastructureRef:
       apiVersion: infrastructure.cluster.x-k8s.io/v1beta1

@@ -5,4 +5,4 @@ metadata:
 spec:
   metro: {{ .Values.equinixmetal.metro }}
   projectID: {{ .Values.equinixmetal.projectID }}
-  vipManager: CPEM # KUBE_VIP
+  vipManager: KUBE_VIP # CPEM

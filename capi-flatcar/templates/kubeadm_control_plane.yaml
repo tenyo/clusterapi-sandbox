@@ -5,12 +5,12 @@ metadata:
 spec:
   kubeadmConfigSpec:
     clusterConfiguration:
-      apiServer:
-        extraArgs:
-          cloud-provider: external
+      # apiServer:
+      #   extraArgs:
+      #     cloud-provider: external
       controllerManager:
         extraArgs:
-          cloud-provider: external
+          # cloud-provider: external
           allocate-node-cidrs: 'true'
           flex-volume-plugin-dir: "/opt/libexec/kubernetes/kubelet-plugins/volume/exec/"
           profiling: 'false'
@@ -18,7 +18,7 @@ spec:
       nodeRegistration:
         name: ${COREOS_PACKET_HOSTNAME}
         kubeletExtraArgs:
-          cloud-provider: external
+          # cloud-provider: external
           container-log-max-size: 1M
           volume-plugin-dir: "/opt/libexec/kubernetes/kubelet-plugins/volume/exec/"
     joinConfiguration:
@@ -26,8 +26,8 @@ spec:
         name: ${COREOS_PACKET_HOSTNAME}
         ignorePreflightErrors:
           - DirAvailable--etc-kubernetes-manifests
-        kubeletExtraArgs:
-          cloud-provider: external
+        # kubeletExtraArgs:
+        #   cloud-provider: external
     format: ignition
     ignition:
       containerLinuxConfig:
@@ -42,25 +42,52 @@ spec:
         ping -c 3 -q ${CP_ENDPOINT} && echo OK || ip addr add ${CP_ENDPOINT} dev lo
     postKubeadmCommands:
       - |
-        mkdir -p $HOME/.kube && cp /etc/kubernetes/admin.conf $HOME/.kube/config
+        mkdir -p /root/.kube && cp /etc/kubernetes/admin.conf /root/.kube/config
+        curl -o /run/metadata.json -fsSL https://metadata.platformequinix.com/metadata
+
+        # deploy kube-vip
+        KVVERSION="${KUBE_VIP_VERSION:=v0.5.12}"
+        ctr image pull ghcr.io/kube-vip/kube-vip:${KVVERSION}
+        ctr run --rm --net-host ghcr.io/kube-vip/kube-vip:$KVVERSION vip /kube-vip manifest pod \
+          --interface "lo" \
+          --vip "${CP_ENDPOINT}" \
+          --controlplane \
+          --bgp \
+          --peerAS $(cat /run/metadata.json | jq -r '.bgp_neighbors[0].peer_as') \
+          --peerAddress $(cat /run/metadata.json | jq -r '.bgp_neighbors[0].peer_ips[0]') \
+          --localAS $(cat /run/metadata.json | jq -r '.bgp_neighbors[0].customer_as') \
+          --bgpRouterID $(cat /run/metadata.json | jq -r '.bgp_neighbors[0].customer_ip') > /etc/kubernetes/manifests/kube-vip.yaml
+
+        # add kube vip on lo
         cat <<EOF >> /etc/systemd/network/00-lo-kubeanycast.network
         [Match]
         Name=lo
-
         [Network]
-
         [Address]
         Label=lo:kubeapi
         Address=${CP_ENDPOINT}/32
         EOF
+
+        # add routes to bgp peers
+        BGP_GW=$(cat /run/metadata.json | jq -r '.network.addresses[] | select(.public == false and .address_family == 4) | .gateway')
+        for BGP_PEER in $(cat /run/metadata.json | jq -r '.bgp_neighbors[0].peer_ips[]'); do
+          cat <<EOF >> /etc/systemd/network/05-bond0.network
+        [Route]
+        Gateway=${BGP_GW}
+        Destination=${BGP_PEER}
+        EOF
+        done
+
         systemctl restart systemd-networkd.service
 
-        # TODO: Need to somehow pass the EM apiKey below
-        export KUBECONFIG=/etc/kubernetes/admin.conf
-        export CPEM_YAML=https://github.com/equinix/cloud-provider-equinix-metal/releases/download/${CPEM_VERSION:=v3.6.2}/deployment.yaml
-        export SECRET_DATA='cloud-sa.json=''{"apiKey": "{{ .apiKey }}","projectID": "{{ .Values.equinixmetal.projectID }}", "eipTag": "cluster-api-provider-packet:cluster-id:{{ include "capi-flatcar.name" . }}", "eipHealthCheckUseHostIP": true}'''
-        kubectl create secret generic -n kube-system metal-cloud-config --from-literal="${SECRET_DATA}" || (sleep 1 && kubectl create secret generic -n kube-system metal-cloud-config --from-literal="${SECRET_DATA}") || (sleep 1 && kubectl create secret generic -n kube-system metal-cloud-config --from-literal="${SECRET_DATA}")
-        kubectl apply -f ${CPEM_YAML} || (sleep 1 && kubectl apply -f ${CPEM_YAML}) || (sleep 1 && kubectl apply -f ${CPEM_YAML})
+        rm /run/metadata.json
+
+        # TODO: Only if using EPEM - need to somehow pass the EM apiKey below
+        # export KUBECONFIG=/etc/kubernetes/admin.conf
+        # export CPEM_YAML=https://github.com/equinix/cloud-provider-equinix-metal/releases/download/${CPEM_VERSION:=v3.6.2}/deployment.yaml
+        # export SECRET_DATA='cloud-sa.json=''{"apiKey": "{{ .apiKey }}","projectID": "{{ .Values.equinixmetal.projectID }}", "eipTag": "cluster-api-provider-packet:cluster-id:{{ include "capi-flatcar.name" . }}", "eipHealthCheckUseHostIP": true}'''
+        # kubectl create secret generic -n kube-system metal-cloud-config --from-literal="${SECRET_DATA}" || (sleep 1 && kubectl create secret generic -n kube-system metal-cloud-config --from-literal="${SECRET_DATA}") || (sleep 1 && kubectl create secret generic -n kube-system metal-cloud-config --from-literal="${SECRET_DATA}")
+        # kubectl apply -f ${CPEM_YAML} || (sleep 1 && kubectl apply -f ${CPEM_YAML}) || (sleep 1 && kubectl apply -f ${CPEM_YAML})
   machineTemplate:
     infrastructureRef:
       apiVersion: infrastructure.cluster.x-k8s.io/v1beta1

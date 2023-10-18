@@ -3,29 +3,29 @@ kind: MachineDeployment
 metadata:
   labels:
     cluster.x-k8s.io/cluster-name: {{ include "capi-flatcar.name" . }}
-    pool: worker-a
-  name: {{ include "capi-flatcar.name" . }}-worker-a
+    pool: worker
+  name: {{ include "capi-flatcar.name" . }}-worker
 spec:
   clusterName: {{ include "capi-flatcar.name" . }}
   replicas: {{ .Values.worker.count }}
   selector:
     matchLabels:
       cluster.x-k8s.io/cluster-name: {{ include "capi-flatcar.name" . }}
-      pool: worker-a
+      pool: worker
   template:
     metadata:
       labels:
         cluster.x-k8s.io/cluster-name: {{ include "capi-flatcar.name" . }}
-        pool: worker-a
+        pool: worker
     spec:
       bootstrap:
         configRef:
           apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
           kind: KubeadmConfigTemplate
-          name: {{ include "capi-flatcar.name" . }}-worker-a
+          name: {{ include "capi-flatcar.name" . }}-worker
       clusterName: {{ include "capi-flatcar.name" . }}
       infrastructureRef:
         apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
         kind: PacketMachineTemplate
-        name: {{ include "capi-flatcar.name" . }}-worker-a
+        name: {{ include "capi-flatcar.name" . }}-worker
       version: {{ .Values.kubeVersion }}

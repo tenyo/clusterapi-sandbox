@@ -1,4 +1,4 @@
-nameOverride: "cluster2"
+nameOverride: "cluster1"
 
 kubeVersion: "v1.28.2"
 

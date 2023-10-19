@@ -74,9 +74,14 @@ This is not supported currently by the packet provider (see https://github.com/k
 
 Disclaimer: This is still WIP so it may not create a fully functioning kube cluster!
 
-This attempts to launch a Flatcar c3 server in Equinix Metal and configure it using ignition:
+Make sure you export your EM API key as it will be used by the helm chart:
 ```
-helm template capi-flatcar/ | kubectl apply -f -
+export PACKET_API_KEY=<YOUR_TOKEN>
+```
+
+Render the ClusterAPI manifests using Helm to deploy a kube cluster on Flatcar servers in Equinix Metal:
+```
+helm template capi-flatcar/ --set apiKey=${PACKET_API_KEY} | kubectl apply -f -
 ```
 
 After it initializes, get the kubeconfig for the new cluster, e.g.:
@@ -84,7 +89,7 @@ After it initializes, get the kubeconfig for the new cluster, e.g.:
 clusterctl get kubeconfig cluster1 > .kubeconfig
 ```
 
-Install Cilium:
+Install Cilium using the CLI to get the cluster operational:
 ```
 KUBECONFIG=.kubeconfig cilium install --set MTU=1500
 ```

@@ -26,7 +26,6 @@ storage:
           UsePAM yes
           PrintLastLog no # handled by PAM
           PrintMotd no # handled by PAM
-          # metalkube.net customizations
           PermitRootLogin no
           AllowUsers core
           AuthenticationMethods publickey
@@ -64,6 +63,7 @@ storage:
           #!/bin/bash
           # This will configure k8s prereqs on a machine and install kubeadm, kubelet, kubectl, etc.
 
+          # TODO: determine the right arch
           ARCH="amd64"
           BIN_DIR="/opt/bin"
           KUBE_VER="{{ .Values.kubeVersion }}"
@@ -181,18 +181,6 @@ systemd:
       enabled: true
     - name: systemd-networkd-wait-online.service
       enabled: true
-    # - name: var-lib-containerd.mount
-    #   enable: false
-    #   contents: |
-    #     [Unit]
-    #     Before=local-fs.target
-    #     [Mount]
-    #     What=LABEL=CONTAINER_STORE
-    #     Where=/var/lib/containerd
-    #     Type=ext4
-    #     [Install]
-    #     WantedBy=local-fs.target
-    # Disable docker, containerd will be enabled later
     - name: docker.socket
       enabled: false
       mask: true
@@ -207,11 +195,6 @@ systemd:
             [Service]
             ExecStart=
             ExecStart=/usr/bin/containerd
-        # - name: 10-wait-var-lib-containerd.conf
-        #   contents: |
-        #     [Unit]
-        #     After=var-lib-containerd.mount
-        #     Requires=var-lib-containerd.mount
     # TPM is disabled in the BIOS
     - name: tcsd.service
       enabled: false

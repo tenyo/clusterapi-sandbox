@@ -24,3 +24,5 @@ cidrBlocks:
 sshKeys:
   caPub: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGMk7ehnqxvlTWoyhdPJxS+1xYvX/Srq5QMcPQPmjs9M"
   core: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGzxTkbVXQR+RRdadSkQ5eKxG53WZTervwMi3GLzlYoO"
+
+apiKey: ""

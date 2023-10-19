@@ -5,12 +5,12 @@ metadata:
 spec:
   kubeadmConfigSpec:
     clusterConfiguration:
-      # apiServer:
-      #   extraArgs:
-      #     cloud-provider: external
+      apiServer:
+        extraArgs:
+          cloud-provider: external
       controllerManager:
         extraArgs:
-          # cloud-provider: external
+          cloud-provider: external
           allocate-node-cidrs: 'true'
           flex-volume-plugin-dir: "/opt/libexec/kubernetes/kubelet-plugins/volume/exec/"
           profiling: 'false'
@@ -18,7 +18,7 @@ spec:
       nodeRegistration:
         name: ${COREOS_PACKET_HOSTNAME}
         kubeletExtraArgs:
-          # cloud-provider: external
+          cloud-provider: external
           container-log-max-size: 1M
           volume-plugin-dir: "/opt/libexec/kubernetes/kubelet-plugins/volume/exec/"
     joinConfiguration:
@@ -26,8 +26,8 @@ spec:
         name: ${COREOS_PACKET_HOSTNAME}
         ignorePreflightErrors:
           - DirAvailable--etc-kubernetes-manifests
-        # kubeletExtraArgs:
-        #   cloud-provider: external
+        kubeletExtraArgs:
+          cloud-provider: external
     format: ignition
     ignition:
       containerLinuxConfig:
@@ -38,7 +38,11 @@ spec:
         envsubst < /etc/kubeadm.yml > /etc/kubeadm.yml.tmp && mv /etc/kubeadm.yml.tmp /etc/kubeadm.yml
         /opt/bootstrap.sh > /opt/bootstrap.log
         export PATH=$PATH:/opt/bin
-        export CP_ENDPOINT=$(grep controlPlaneEndpoint /etc/kubeadm.yml | cut -d ' ' -f2 | cut -d ':' -f1)
+        export CP_ENDPOINT=$(grep controlPlaneEndpoint /etc/kubeadm.yml | cut -d ':' -f2 | xargs)
+        if [ -z "$CP_ENDPOINT" ]; then
+          # when joining an existing cluster
+          export CP_ENDPOINT=$(grep apiServerEndpoint /etc/kubeadm.yml | cut -d ':' -f2 | xargs)
+        fi
         ping -c 3 -q ${CP_ENDPOINT} && echo OK || ip addr add ${CP_ENDPOINT} dev lo
     postKubeadmCommands:
       - |
@@ -78,16 +82,20 @@ spec:
         EOF
         done
 
-        systemctl restart systemd-networkd.service
+        export KUBECONFIG=/etc/kubernetes/admin.conf
 
+        # deploy the EM cloud provider
+        CPEM_DS=$(kubectl get ds -n kube-system | grep -c cloud-provider-equinix-metal || true)
+        if [ ${CPEM_DS} -eq 0 ]; then
+          export CPEM_YAML=https://github.com/equinix/cloud-provider-equinix-metal/releases/download/${CPEM_VERSION:=v3.6.2}/deployment.yaml
+          export SECRET_DATA='cloud-sa.json=''{"apiKey": "{{ .Values.apiKey }}","projectID": "{{ .Values.equinixmetal.projectID }}", "eipTag": "cluster-api-provider-packet:cluster-id:{{ include "capi-flatcar.name" . }}", "eipHealthCheckUseHostIP": true}'''
+          kubectl create secret generic -n kube-system metal-cloud-config --from-literal="${SECRET_DATA}" || (sleep 1 && kubectl create secret generic -n kube-system metal-cloud-config --from-literal="${SECRET_DATA}") || (sleep 1 && kubectl create secret generic -n kube-system metal-cloud-config --from-literal="${SECRET_DATA}")
+          kubectl apply -f ${CPEM_YAML} || (sleep 1 && kubectl apply -f ${CPEM_YAML}) || (sleep 1 && kubectl apply -f ${CPEM_YAML})
+        fi
+
+        systemctl restart systemd-networkd.service
         rm /run/metadata.json
 
-        # TODO: Only if using EPEM - need to somehow pass the EM apiKey below
-        # export KUBECONFIG=/etc/kubernetes/admin.conf
-        # export CPEM_YAML=https://github.com/equinix/cloud-provider-equinix-metal/releases/download/${CPEM_VERSION:=v3.6.2}/deployment.yaml
-        # export SECRET_DATA='cloud-sa.json=''{"apiKey": "{{ .apiKey }}","projectID": "{{ .Values.equinixmetal.projectID }}", "eipTag": "cluster-api-provider-packet:cluster-id:{{ include "capi-flatcar.name" . }}", "eipHealthCheckUseHostIP": true}'''
-        # kubectl create secret generic -n kube-system metal-cloud-config --from-literal="${SECRET_DATA}" || (sleep 1 && kubectl create secret generic -n kube-system metal-cloud-config --from-literal="${SECRET_DATA}") || (sleep 1 && kubectl create secret generic -n kube-system metal-cloud-config --from-literal="${SECRET_DATA}")
-        # kubectl apply -f ${CPEM_YAML} || (sleep 1 && kubectl apply -f ${CPEM_YAML}) || (sleep 1 && kubectl apply -f ${CPEM_YAML})
   machineTemplate:
     infrastructureRef:
       apiVersion: infrastructure.cluster.x-k8s.io/v1beta1

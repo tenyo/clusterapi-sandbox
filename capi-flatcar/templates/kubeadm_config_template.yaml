@@ -9,7 +9,7 @@ spec:
         nodeRegistration:
           name: ${COREOS_PACKET_HOSTNAME}
           kubeletExtraArgs:
-            # cloud-provider: external
+            cloud-provider: external
             volume-plugin-dir: "/opt/libexec/kubernetes/kubelet-plugins/volume/exec/"
       format: ignition
       ignition:

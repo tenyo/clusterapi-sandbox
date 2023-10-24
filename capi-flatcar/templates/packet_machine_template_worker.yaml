@@ -1,12 +1,16 @@
+{{- $root := . }}
+{{- range $worker := .Values.workers }}
+---
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: PacketMachineTemplate
 metadata:
-  name: {{ include "capi-flatcar.name" . }}-worker
+  name: {{ include "capi-flatcar.name" $root }}-{{ $worker.name }}
 spec:
   template:
     spec:
       billingCycle: hourly
       # hardwareReservationID: ""
-      machineType: {{ .Values.worker.machineType }}
-      os: {{ .Values.equinixmetal.os }}
+      machineType: {{ $worker.machineType }}
+      os: {{ $root.Values.equinixmetal.os }}
       tags: []
+{{- end }}

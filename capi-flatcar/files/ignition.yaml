@@ -63,8 +63,6 @@ storage:
           #!/bin/bash
           # This will configure k8s prereqs on a machine and install kubeadm, kubelet, kubectl, etc.
 
-          # TODO: determine the right arch
-          ARCH="amd64"
           BIN_DIR="/opt/bin"
           KUBE_VER="{{ .Values.kubeVersion }}"
 
@@ -80,6 +78,7 @@ storage:
 
           echo "$(lsblk -I 8 -o name,label,size)"
 
+          # TODO: make this check more reliable
           # pick the smallest available disk
           CONTAINER_DISK=$(lsblk --json -I 8 -o name,label,size | jq -r '.blockdevices | sort_by(.size) | map(select(.children == null)) | map(select(.size != "0B")) | .[0].name')
           if [ ! -z "$CONTAINER_DISK" ]; then
@@ -111,13 +110,22 @@ storage:
 
             systemctl daemon-reload
             systemctl enable --now var-lib-containerd.mount
-            mkdir /var/lib/containerd/pod-logs && ln -s /var/log/pods /var/lib/containerd/pod-logs
+            mkdir /var/lib/containerd/pod-logs && rm -rf /var/log/pods
+            ln -s /var/lib/containerd/pod-logs /var/log/pods
             systemctl start containerd
           else
             echo "WARNING: unable to pick an available container disk using lsblk!"
           fi
 
           ## install kubeadm, kubelet, kubectl and add a kubelet systemd service
+
+          if [[ $(arch) == arm* ]] || [[ $(arch) == aarch64 ]]; then
+            ARCH="arm64"
+          else
+            ARCH="amd64"
+          fi
+
+          echo "Downloading kube binaries (arch: ${ARCH}) ..."
 
           cd $BIN_DIR
           curl -L --remote-name-all https://dl.k8s.io/release/${KUBE_VER}/bin/linux/${ARCH}/{kubeadm,kubelet,kubectl}

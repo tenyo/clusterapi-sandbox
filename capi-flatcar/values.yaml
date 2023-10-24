@@ -4,11 +4,13 @@ kubeVersion: "v1.28.2"
 
 controlplane:
   count: 1
-  machineType: c3.small.x86
+  machineType: m3.small.x86
 
-worker:
-  count: 1
-  machineType: c3.small.x86
+# you can specify multiple worker pools with different machine types
+workers:
+  - name: worker-a
+    count: 1
+    machineType: m3.small.x86
 
 equinixmetal:
   metro: da
@@ -24,5 +26,11 @@ cidrBlocks:
 sshKeys:
   caPub: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGMk7ehnqxvlTWoyhdPJxS+1xYvX/Srq5QMcPQPmjs9M"
   core: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGzxTkbVXQR+RRdadSkQ5eKxG53WZTervwMi3GLzlYoO"
+
+versions:
+  # https://github.com/kubernetes-sigs/cloud-provider-equinix-metal
+  cpem: "v3.6.2"
+  # https://github.com/kube-vip/kube-vip
+  kubeVip: "v0.6.3"
 
 apiKey: ""

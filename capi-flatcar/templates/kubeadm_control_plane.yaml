@@ -1,7 +1,7 @@
 apiVersion: controlplane.cluster.x-k8s.io/v1beta1
 kind: KubeadmControlPlane
 metadata:
-  name: {{ include "capi-flatcar.name" . }}-control-plane
+  name: {{ include "capi-flatcar.name" . }}-controller
 spec:
   kubeadmConfigSpec:
     clusterConfiguration:
@@ -50,7 +50,7 @@ spec:
         curl -o /run/metadata.json -fsSL https://metadata.platformequinix.com/metadata
 
         # deploy kube-vip
-        KVVERSION="${KUBE_VIP_VERSION:=v0.5.12}"
+        KVVERSION="{{ .Values.versions.kubeVip }}"
         ctr image pull ghcr.io/kube-vip/kube-vip:${KVVERSION}
         ctr run --rm --net-host ghcr.io/kube-vip/kube-vip:$KVVERSION vip /kube-vip manifest pod \
           --interface "lo" \
@@ -87,7 +87,7 @@ spec:
         # deploy the EM cloud provider
         CPEM_DS=$(kubectl get ds -n kube-system | grep -c cloud-provider-equinix-metal || true)
         if [ ${CPEM_DS} -eq 0 ]; then
-          export CPEM_YAML=https://github.com/equinix/cloud-provider-equinix-metal/releases/download/${CPEM_VERSION:=v3.6.2}/deployment.yaml
+          export CPEM_YAML="https://github.com/equinix/cloud-provider-equinix-metal/releases/download/{{ .Values.versions.cpem }}/deployment.yaml"
           export SECRET_DATA='cloud-sa.json=''{"apiKey": "{{ .Values.apiKey }}","projectID": "{{ .Values.equinixmetal.projectID }}", "eipTag": "cluster-api-provider-packet:cluster-id:{{ include "capi-flatcar.name" . }}", "eipHealthCheckUseHostIP": true}'''
           kubectl create secret generic -n kube-system metal-cloud-config --from-literal="${SECRET_DATA}" || (sleep 1 && kubectl create secret generic -n kube-system metal-cloud-config --from-literal="${SECRET_DATA}") || (sleep 1 && kubectl create secret generic -n kube-system metal-cloud-config --from-literal="${SECRET_DATA}")
           kubectl apply -f ${CPEM_YAML} || (sleep 1 && kubectl apply -f ${CPEM_YAML}) || (sleep 1 && kubectl apply -f ${CPEM_YAML})
@@ -100,6 +100,6 @@ spec:
     infrastructureRef:
       apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
       kind: PacketMachineTemplate
-      name: {{ include "capi-flatcar.name" . }}-control-plane
+      name: {{ include "capi-flatcar.name" . }}-controller
   replicas: {{ .Values.controlplane.count }}
   version: {{ .Values.kubeVersion }}

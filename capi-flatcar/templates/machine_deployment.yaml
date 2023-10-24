@@ -1,31 +1,35 @@
+{{- $root := . }}
+{{- range $worker := .Values.workers }}
+---
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: MachineDeployment
 metadata:
   labels:
-    cluster.x-k8s.io/cluster-name: {{ include "capi-flatcar.name" . }}
-    pool: worker
-  name: {{ include "capi-flatcar.name" . }}-worker
+    cluster.x-k8s.io/cluster-name: {{ include "capi-flatcar.name" $root }}
+    pool: {{ $worker.name }}
+  name: {{ include "capi-flatcar.name" $root }}-{{ $worker.name }}
 spec:
-  clusterName: {{ include "capi-flatcar.name" . }}
-  replicas: {{ .Values.worker.count }}
+  clusterName: {{ include "capi-flatcar.name" $root }}
+  replicas: {{ $worker.count }}
   selector:
     matchLabels:
-      cluster.x-k8s.io/cluster-name: {{ include "capi-flatcar.name" . }}
-      pool: worker
+      cluster.x-k8s.io/cluster-name: {{ include "capi-flatcar.name" $root }}
+      pool: {{ $worker.name }}
   template:
     metadata:
       labels:
-        cluster.x-k8s.io/cluster-name: {{ include "capi-flatcar.name" . }}
-        pool: worker
+        cluster.x-k8s.io/cluster-name: {{ include "capi-flatcar.name" $root }}
+        pool: {{ $worker.name }}
     spec:
       bootstrap:
         configRef:
           apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
           kind: KubeadmConfigTemplate
-          name: {{ include "capi-flatcar.name" . }}-worker
-      clusterName: {{ include "capi-flatcar.name" . }}
+          name: {{ include "capi-flatcar.name" $root }}-{{ $worker.name }}
+      clusterName: {{ include "capi-flatcar.name" $root }}
       infrastructureRef:
         apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
         kind: PacketMachineTemplate
-        name: {{ include "capi-flatcar.name" . }}-worker
-      version: {{ .Values.kubeVersion }}
+        name: {{ include "capi-flatcar.name" $root }}-{{ $worker.name }}
+      version: {{ $root.Values.kubeVersion }}
+{{- end }}

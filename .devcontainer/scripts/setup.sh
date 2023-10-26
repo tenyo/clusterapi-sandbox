@@ -4,7 +4,7 @@ export ARCH=amd64
 if [ "$(uname -m)" = "aarch64" ]; then ARCH=arm64; fi
 
 export KIND_CLI_VERSION=0.20.0
-export CLUSTERCTL_VERSION=1.5.2
+export CLUSTERCTL_VERSION=1.5.3
 export CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/main/stable.txt)
 
 go install sigs.k8s.io/kind@v${KIND_CLI_VERSION}

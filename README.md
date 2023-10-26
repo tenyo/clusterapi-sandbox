@@ -98,4 +98,3 @@ Confirm cluster is now Ready:
 ```
 kubectl --kubeconfig=.kubeconfig get node
 ```
-

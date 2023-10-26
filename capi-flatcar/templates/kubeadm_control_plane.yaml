@@ -21,6 +21,8 @@ spec:
           cloud-provider: external
           container-log-max-size: 1M
           volume-plugin-dir: "/opt/libexec/kubernetes/kubelet-plugins/volume/exec/"
+        # remove taints to make sure we can deploy on controllers
+        taints: []
     joinConfiguration:
       nodeRegistration:
         name: ${COREOS_PACKET_HOSTNAME}
@@ -28,6 +30,8 @@ spec:
           - DirAvailable--etc-kubernetes-manifests
         kubeletExtraArgs:
           cloud-provider: external
+        # remove taints to make sure we can deploy on controllers
+        taints: []
     format: ignition
     ignition:
       containerLinuxConfig:

@@ -4,7 +4,7 @@
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: PacketMachineTemplate
 metadata:
-  name: {{ include "capi-flatcar.name" $root }}-{{ $worker.name }}
+  name: {{ include "capi-flatcar.name" $root }}-{{ $worker.prefix }}
 spec:
   template:
     spec:

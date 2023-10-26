@@ -8,8 +8,8 @@ controlplane:
 
 # you can specify multiple worker pools with different machine types
 workers:
-  - name: worker-a
-    count: 1
+  - prefix: worker-a
+    count: 0
     machineType: m3.small.x86
 
 equinixmetal:
@@ -23,9 +23,13 @@ cidrBlocks:
   services:
     - 172.26.0.0/16
 
-sshKeys:
+ssh:
+  adminName: core
+  adminPubkeys:
+    - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGzxTkbVXQR+RRdadSkQ5eKxG53WZTervwMi3GLzlYoO"
+  authPrincipals:
+    - delivery-infra
   caPub: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGMk7ehnqxvlTWoyhdPJxS+1xYvX/Srq5QMcPQPmjs9M"
-  core: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGzxTkbVXQR+RRdadSkQ5eKxG53WZTervwMi3GLzlYoO"
 
 versions:
   # https://github.com/kubernetes-sigs/cloud-provider-equinix-metal

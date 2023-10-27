@@ -1,6 +1,6 @@
 nameOverride: "cluster1"
 
-kubeVersion: "v1.28.2"
+kubeVersion: "v1.28.3"
 
 controlplane:
   count: 1
@@ -36,5 +36,9 @@ versions:
   cpem: "v3.6.2"
   # https://github.com/kube-vip/kube-vip
   kubeVip: "v0.6.3"
+
+# install addons using ClusterResourceSets
+installCRS:
+  cilium: true
 
 apiKey: ""

@@ -7,8 +7,11 @@ The Devcontainer has all necessary tools required to quickly get up and running 
 Once the Devcontainer starts you can deploy a management ClusterAPI cluster on the local kind cluster.
 
 ```
-# this is needed to enable experimental support for ignition configs
+# enable support for ignition configs
 export EXP_KUBEADM_BOOTSTRAP_FORMAT_IGNITION=true
+
+# enable support for clusterresourcesets
+export EXP_CLUSTER_RESOURCE_SET=true
 
 # use your Equinix Metal token
 export PACKET_API_KEY=<YOUR_TOKEN>
@@ -81,7 +84,7 @@ export PACKET_API_KEY=<YOUR_TOKEN>
 
 Render the ClusterAPI manifests using Helm to deploy a kube cluster on Flatcar servers in Equinix Metal:
 ```
-helm template capi-flatcar/ --set apiKey=${PACKET_API_KEY} | kubectl apply -f -
+helm template capi-flatcar/ --set apiKey=${PACKET_API_KEY} --set nameOverride="cluster1" | kubectl apply -f -
 ```
 
 After it initializes, get the kubeconfig for the new cluster, e.g.:
@@ -97,4 +100,17 @@ KUBECONFIG=.kubeconfig cilium install --set MTU=1500
 Confirm cluster is now Ready:
 ```
 kubectl --kubeconfig=.kubeconfig get node
+```
+
+## Bootstrap/pivot to new management cluster
+
+Bootstrap a local/kind mgmt cluster and create a new workload cluster from there.
+Once it's up and ready, use clusterctl to init the new cluster and move all the capi configs:
+
+```
+KUBECONFIG=.kubeconfig clusterctl init --infrastructure packet
+```
+
+```
+clusterctl move --to-kubeconfig=.kubeconfig
 ```

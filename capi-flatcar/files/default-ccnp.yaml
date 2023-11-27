@@ -1,0 +1,14 @@
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: default-hostnetwork-policy
+spec:
+  ingress:
+    - fromEntities:
+        - cluster
+        - host
+        - remote-node
+    - fromCIDR:
+        # list allowed CIDRs here
+
+  nodeSelector: {}

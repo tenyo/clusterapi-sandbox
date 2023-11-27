@@ -24,4 +24,16 @@ spec:
           envsubst < /etc/kubeadm.yml > /etc/kubeadm.yml.tmp && mv /etc/kubeadm.yml.tmp /etc/kubeadm.yml
           /opt/bootstrap.sh > /opt/bootstrap.log
           export PATH=$PATH:/opt/bin
+
+          CCNP_YAML="/opt/default-ccnp.yaml"
+          if [ -f ${CCNP_YAML} ]; then
+            # apply a default ccnp after cilium is installed
+            for i in $(seq 1 3); do
+              kubectl get crds ciliumclusterwidenetworkpolicies.cilium.io \
+                && kubectl apply -f ${CCNP_YAML} \
+                && break \
+              || sleep 30
+            done
+          fi
+
 {{- end }}

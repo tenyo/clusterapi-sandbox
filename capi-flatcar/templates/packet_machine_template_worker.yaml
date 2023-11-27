@@ -12,5 +12,8 @@ spec:
       # hardwareReservationID: ""
       machineType: {{ $worker.machineType }}
       os: {{ $root.Values.equinixmetal.os }}
+      {{ if eq $root.Values.equinixmetal.os "custom_ipxe" -}}
+      ipxeURL: {{ $root.Values.equinixmetal.ipxeURL }}
+      {{ end -}}
       tags: []
 {{- end }}

@@ -100,6 +100,17 @@ spec:
         systemctl restart systemd-networkd.service
         rm /run/metadata.json
 
+        CCNP_YAML="/opt/default-ccnp.yaml"
+        if [ -f ${CCNP_YAML} ]; then
+          # apply a default ccnp after cilium is installed
+          for i in $(seq 1 3); do
+            kubectl get crds ciliumclusterwidenetworkpolicies.cilium.io \
+              && kubectl apply -f ${CCNP_YAML} \
+              && break \
+            || sleep 30
+          done
+        fi
+
   machineTemplate:
     infrastructureRef:
       apiVersion: infrastructure.cluster.x-k8s.io/v1beta1

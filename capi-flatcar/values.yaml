@@ -9,13 +9,15 @@ controlplane:
 # you can specify multiple worker pools with different machine types
 workers:
   - prefix: worker-a
-    count: 0
-    machineType: m3.small.x86
+    count: 1
+    machineType: t3.small.x86
 
 equinixmetal:
   metro: da
   projectID: dc001ab1-9386-4159-b45c-9a1ba0a81611
-  os: flatcar_stable
+  os: flatcar_stable # custom_ipxe
+  # ipxeURL is required if os is custom_ipxe
+  # ipxeURL: "http://boot.tenyo.xyz:8080/flatcar.ipxe"
 
 cidrBlocks:
   pods:

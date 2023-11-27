@@ -9,4 +9,7 @@ spec:
       # hardwareReservationID: ""
       machineType: {{ .Values.controlplane.machineType }}
       os: {{ .Values.equinixmetal.os }}
+      {{ if eq .Values.equinixmetal.os "custom_ipxe" -}}
+      ipxeURL: {{ .Values.equinixmetal.ipxeURL }}
+      {{ end -}}
       tags: []
